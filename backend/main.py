@@ -30,7 +30,11 @@ else:
     tf.config.threading.set_intra_op_parallelism_threads(1)
     tf.config.threading.set_inter_op_parallelism_threads(1)
 
-app = FastAPI(title="SkinCare AI API", version="3.0")
+# ── Global Assets ────────────────────────────────────────────────────────────
+model = None
+reader = None # Initialize as None to avoid NameError
+
+# ── Memory Optimization ──────────────────────────────────────────────────────
 
 app.add_middleware(
     CORSMiddleware,
@@ -75,8 +79,9 @@ T_OPT = 1.2  # Temperature scaling constant
 async def load_assets():
     global model, reader
     try:
-        model = tf.keras.models.load_model("skin_model.h5")
-        print("Skin classification model loaded")
+        if os.path.exists("skin_model.h5"):
+            model = tf.keras.models.load_model("skin_model.h5")
+            print("Skin classification model loaded")
     except Exception as e:
         print(f"Model load failed: {e}. Using mock predictions.")
 
@@ -192,14 +197,21 @@ async def predict_skin_type(data: SkinPredictRequest):
 async def analyze_ingredients(data: IngredientRequest):
     tokens = []
     if data.image_b64:
-        img = decode_image(data.image_b64)
-        result, _ = reader(img)
-        if result:
-            tokens.extend([line[1] for line in result])
-        
-        # Manual cleanup to save RAM
-        del img
-        gc.collect()
+        if reader is None:
+            return {"error": "OCR engine not initialized. Check server logs."}
+            
+        try:
+            img = decode_image(data.image_b64)
+            result, _ = reader(img)
+            if result:
+                tokens.extend([line[1] for line in result])
+            
+            # Manual cleanup to save RAM
+            del img
+            gc.collect()
+        except Exception as e:
+            print(f"OCR Runtime Error: {e}")
+            return {"error": f"OCR processing failed: {str(e)}"}
     
     if data.manual_text:
         tokens.append(data.manual_text)
