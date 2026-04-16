@@ -7,14 +7,13 @@ services:
     buildCommand: pip install -r backend/requirements.txt
     startCommand: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
-      - key: PORT
-        value: 8000
       - key: PYTHON_VERSION
         value: 3.10.0
 
   # Frontend React/Vite Service
-  - type: static_site
+  - type: web
     name: skincare-frontend
+    env: static
     buildCommand: npm install && npm run build
     staticPublishPath: frontend/dist
     envVars:
