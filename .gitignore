@@ -1,0 +1,24 @@
+# Node
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Project Specific
+# Large media/logs
+*.log
+.DS_Store
+.vscode/
+.idea/
