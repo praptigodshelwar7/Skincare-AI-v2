@@ -80,7 +80,8 @@ async def load_assets():
     global model, reader
     try:
         if os.path.exists("skin_model.h5"):
-            model = tf.keras.models.load_model("skin_model.h5")
+            # Use compile=False to avoid deserialization errors in Keras 3
+            model = tf.keras.models.load_model("skin_model.h5", compile=False)
             print("Skin classification model loaded")
     except Exception as e:
         print(f"Model load failed: {e}. Using mock predictions.")
