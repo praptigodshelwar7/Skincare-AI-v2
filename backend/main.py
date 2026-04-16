@@ -12,8 +12,23 @@ import pandas as pd
 from PIL import Image
 from rapidfuzz import fuzz
 import tensorflow as tf
-import easyocr
+from rapidocr_onnxruntime import RapidOCR
+import gc
 from tensorflow.keras.applications.efficientnet import preprocess_input
+
+# ── Memory Optimization ──────────────────────────────────────────────────────
+# Prevent TensorFlow from allocating all RAM on startup
+gpus = tf.config.experimental.list_physical_devices('GPU')
+if gpus:
+    try:
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+    except RuntimeError as e:
+        print(e)
+else:
+    # On CPU, limit threads to reduce memory footprint
+    tf.config.threading.set_intra_op_parallelism_threads(1)
+    tf.config.threading.set_inter_op_parallelism_threads(1)
 
 app = FastAPI(title="SkinCare AI API", version="3.0")
 
@@ -66,11 +81,11 @@ async def load_assets():
         print(f"Model load failed: {e}. Using mock predictions.")
 
     try:
-        # Load easyocr reader
-        reader = easyocr.Reader(["en"], gpu=False)
-        print("EasyOCR reader initialized")
+        # Load RapidOCR (ONNX based, very low RAM compared to EasyOCR)
+        reader = RapidOCR()
+        print("RapidOCR initialized")
     except Exception as e:
-        print(f"EasyOCR initialization failed: {e}")
+        print(f"OCR initialization failed: {e}")
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
 class QuestionnaireData(BaseModel):
@@ -178,8 +193,13 @@ async def analyze_ingredients(data: IngredientRequest):
     tokens = []
     if data.image_b64:
         img = decode_image(data.image_b64)
-        results = reader.readtext(img, detail=0)
-        tokens.extend(results)
+        result, _ = reader(img)
+        if result:
+            tokens.extend([line[1] for line in result])
+        
+        # Manual cleanup to save RAM
+        del img
+        gc.collect()
     
     if data.manual_text:
         tokens.append(data.manual_text)
