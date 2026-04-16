@@ -34,7 +34,7 @@ else:
 model = None
 reader = None # Initialize as None to avoid NameError
 
-# ── Memory Optimization ──────────────────────────────────────────────────────
+app = FastAPI(title="SkinCare AI API", version="3.0")
 
 app.add_middleware(
     CORSMiddleware,
