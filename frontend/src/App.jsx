@@ -222,40 +222,40 @@ const App = () => {
           <div className="glass-card question-card">
             <h3>1. Is your T-zone often shiny?</h3>
             <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-              <button className={`btn-option ${answers.q1 === 'yes' ? 'selected' : ''}`} onClick={() => setAnswers({...answers, q1: 'yes'})}>Yes</button>
-              <button className={`btn-option ${answers.q1 === 'no' ? 'selected' : ''}`} onClick={() => setAnswers({...answers, q1: 'no'})}>No</button>
+              <button className={`btn-option ${answers.q1 === 1 ? 'selected' : ''}`} onClick={() => setAnswers({...answers, q1: 1})}>Yes</button>
+              <button className={`btn-option ${answers.q1 === 0 ? 'selected' : ''}`} onClick={() => setAnswers({...answers, q1: 0})}>No</button>
             </div>
           </div>
 
           <div className="glass-card question-card">
             <h3>2. Does your skin feel tight after washing?</h3>
             <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-              <button className={`btn-option ${answers.q2 === 'yes' ? 'selected' : ''}`} onClick={() => setAnswers({...answers, q2: 'yes'})}>Yes</button>
-              <button className={`btn-option ${answers.q2 === 'no' ? 'selected' : ''}`} onClick={() => setAnswers({...answers, q2: 'no'})}>No</button>
+              <button className={`btn-option ${answers.q2 === 1 ? 'selected' : ''}`} onClick={() => setAnswers({...answers, q2: 1})}>Yes</button>
+              <button className={`btn-option ${answers.q2 === 0 ? 'selected' : ''}`} onClick={() => setAnswers({...answers, q2: 0})}>No</button>
             </div>
           </div>
 
           <div className="glass-card question-card">
             <h3>3. Do you have frequent breakouts?</h3>
             <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-              <button className={`btn-option ${answers.q3 === 'yes' ? 'selected' : ''}`} onClick={() => setAnswers({...answers, q3: 'yes'})}>Yes</button>
-              <button className={`btn-option ${answers.q3 === 'no' ? 'selected' : ''}`} onClick={() => setAnswers({...answers, q3: 'no'})}>No</button>
+              <button className={`btn-option ${answers.q3 === 1 ? 'selected' : ''}`} onClick={() => setAnswers({...answers, q3: 1})}>Yes</button>
+              <button className={`btn-option ${answers.q3 === 0 ? 'selected' : ''}`} onClick={() => setAnswers({...answers, q3: 0})}>No</button>
             </div>
           </div>
 
           <div className="glass-card question-card">
             <h3>4. Is your skin easily irritated or sensitive?</h3>
             <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-              <button className={`btn-option ${answers.q4 === 'yes' ? 'selected' : ''}`} onClick={() => setAnswers({...answers, q4: 'yes'})}>Yes</button>
-              <button className={`btn-option ${answers.q4 === 'no' ? 'selected' : ''}`} onClick={() => setAnswers({...answers, q4: 'no'})}>No</button>
+              <button className={`btn-option ${answers.q4 === 1 ? 'selected' : ''}`} onClick={() => setAnswers({...answers, q4: 1})}>Yes</button>
+              <button className={`btn-option ${answers.q4 === 0 ? 'selected' : ''}`} onClick={() => setAnswers({...answers, q4: 0})}>No</button>
             </div>
           </div>
 
           <div className="glass-card question-card">
             <h3>5. Is your skin oily in some areas and dry in others?</h3>
             <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-              <button className={`btn-option ${answers.q5 === 'yes' ? 'selected' : ''}`} onClick={() => setAnswers({...answers, q5: 'yes'})}>Yes</button>
-              <button className={`btn-option ${answers.q5 === 'no' ? 'selected' : ''}`} onClick={() => setAnswers({...answers, q5: 'no'})}>No</button>
+              <button className={`btn-option ${answers.q5 === 1 ? 'selected' : ''}`} onClick={() => setAnswers({...answers, q5: 1})}>Yes</button>
+              <button className={`btn-option ${answers.q5 === 0 ? 'selected' : ''}`} onClick={() => setAnswers({...answers, q5: 0})}>No</button>
             </div>
           </div>
 
