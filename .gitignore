@@ -31,3 +31,11 @@ pip_output*.txt
 pip_download.txt
 test_output.txt
 install_wheels.log
+
+# Training Data
+model_training/data/
+model_training/dataset/
+*.jpg
+*.jpeg
+*.png
+*.zip
