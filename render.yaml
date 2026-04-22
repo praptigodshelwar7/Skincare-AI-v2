@@ -18,10 +18,7 @@ services:
     staticPublishPath: frontend/dist
     envVars:
       - key: VITE_API_BASE
-        fromService:
-          type: web
-          name: skincare-api
-          property: hostport
+        value: https://skincare-api-cmnk.onrender.com
     routes:
       - type: rewrite
         source: /*
