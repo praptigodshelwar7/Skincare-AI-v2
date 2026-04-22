@@ -239,16 +239,18 @@ async def predict_skin_type(data: SkinPredictRequest):
     final_scores = {k: v/total_val for k, v in final_scores.items()}
     
     skin_type = max(final_scores, key=final_scores.get)
+    result = {
+        "skin_type": skin_type.capitalize(),
+        "confidence": float(final_scores.get(skin_type, 0)),
+        "breakdown": final_scores
+    }
+    print(f"DEBUG: Returning result: {result}")
     
     # Free memory
     del img, face_crop
     gc.collect()
     
-    return {
-        "skin_type": skin_type.capitalize(),
-        "confidence": final_scores[skin_type],
-        "breakdown": final_scores
-    }
+    return result
 
 @app.post("/api/analyze-ingredients")
 async def analyze_ingredients(req: IngredientRequest):

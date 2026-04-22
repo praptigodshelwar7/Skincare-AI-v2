@@ -19,9 +19,13 @@ import {
 
 // Render's `host` property gives just "https://xxx.onrender.com"
 const rawBase = import.meta.env.VITE_API_BASE || "http://localhost:8000";
-const API_BASE = rawBase.replace(/\/+$/, '') + (rawBase.includes("localhost") ? "/api" : "/api");
+const API_BASE = rawBase.replace(/\/+$/, '') + (rawBase.includes("localhost") ? "" : "");
 // Ensure it always has /api suffix if missing, but avoid double slash
-const getApiUrl = (endpoint) => `${API_BASE.replace(/\/+$/, '')}/${endpoint.replace(/^\/+/, '')}`;
+const getApiUrl = (endpoint) => {
+  const url = `${API_BASE.replace(/\/+$/, '')}/api/${endpoint.replace(/^\/+/, '')}`;
+  console.log(`[DEBUG] Calling API: ${url}`);
+  return url;
+};
 
 const App = () => {
   const [step, setStep] = useState(0); // 0: Hero, 1: Camera, 2: Questionnaire, 3: Result, 4: OCR, 5: OCR Result
@@ -50,6 +54,7 @@ const App = () => {
           image_b64: capturedImage,
           questionnaire: answers
         }, { timeout: 45000 });
+        console.log("[DEBUG] Skin Analysis Response:", response.data);
         setSkinResult(response.data);
         setStep(3);
       } catch (err) {
