@@ -19,8 +19,15 @@ venv.bak/
 # Project Specific
 # Large model/wheel files
 *.h5
+*.onnx
 *.whl
 *.log
 .DS_Store
 .vscode/
 .idea/
+
+# Temp/scratch files
+pip_output*.txt
+pip_download.txt
+test_output.txt
+install_wheels.log

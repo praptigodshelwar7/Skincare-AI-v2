@@ -29,6 +29,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ── Health Check (Render pings GET / to verify the service is alive) ────────
+@app.get("/")
+async def health_check():
+    return {"status": "ok", "service": "SkinCare AI API", "version": "3.0"}
+
 # ── ONNX Model Constants ────────────────────────────────────────────────────
 CLASS_NAMES = ["dry", "normal", "oily"]
 
