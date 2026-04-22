@@ -21,7 +21,7 @@ services:
         fromService:
           type: web
           name: skincare-api
-          property: host
+          property: hostport
     routes:
       - type: rewrite
         source: /*

@@ -17,16 +17,34 @@ import {
   Search
 } from 'lucide-react';
 
-// Render's `host` property gives just "https://xxx.onrender.com"
+// ── API Configuration ────────────────────────────────────────────────────────
+// Render's `hostport` property gives "https://xxx.onrender.com"
+// Render's `host` property gives just "xxx.onrender.com" (NO protocol!)
+// We handle both cases to be safe.
 const rawBase = import.meta.env.VITE_API_BASE || "https://skincare-api-cmnk.onrender.com";
-const API_BASE = rawBase.replace(/\/+$/, '') + (rawBase.includes("localhost") ? "" : "");
-// Ensure it always has /api suffix if missing, but avoid double slash
+
+// Ensure the base URL always has https:// protocol
+const ensureProtocol = (url) => {
+  const trimmed = url.replace(/\/+$/, '').trim();
+  if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+    return `https://${trimmed}`;
+  }
+  return trimmed;
+};
+
+const API_BASE = ensureProtocol(rawBase);
+
 const getApiUrl = (endpoint) => {
-  const url = `${API_BASE.replace(/\/+$/, '')}/api/${endpoint.replace(/^\/+/, '')}`;
-  console.log(`[DEBUG] Calling API: ${url}`);
+  const url = `${API_BASE}/api/${endpoint.replace(/^\/+/, '')}`;
+  console.log(`[API] → ${url}`);
   return url;
 };
 
+// Log the resolved API base on startup
+console.log(`[CONFIG] VITE_API_BASE raw = "${rawBase}"`);
+console.log(`[CONFIG] API_BASE resolved = "${API_BASE}"`);
+
+// ── App Component ────────────────────────────────────────────────────────────
 const App = () => {
   const [step, setStep] = useState(0); // 0: Hero, 1: Camera, 2: Questionnaire, 3: Result, 4: OCR, 5: OCR Result
   const [loading, setLoading] = useState(false);
@@ -34,39 +52,22 @@ const App = () => {
   const [skinResult, setSkinResult] = useState(null);
   const [ocrResult, setOcrResult] = useState(null);
   const [answers, setAnswers] = useState({ q1: '', q2: '', q3: '', q4: '', q5: '' });
+  const [detectedIngredients, setDetectedIngredients] = useState([]);
+  const [error, setError] = useState(null);
   
+  const webcamRef = useRef(null);
+
   const resetAnalysis = () => {
     setStep(0);
     setCapturedImage(null);
     setSkinResult(null);
     setOcrResult(null);
     setAnswers({ q1: '', q2: '', q3: '', q4: '', q5: '' });
-  };
-  
-  const webcamRef = useRef(null);
-
-  const handleNext = async () => {
-    if (step === 2) {
-      // Analyze Skin
-      setLoading(true);
-      try {
-        const response = await axios.post(getApiUrl('predict-skin'), {
-          image_b64: capturedImage,
-          questionnaire: answers
-        }, { timeout: 45000 });
-        console.log("[DEBUG] Skin Analysis Response:", response.data);
-        setSkinResult(response.data);
-        setStep(3);
-      } catch (err) {
-        console.error("Skin Analysis Error:", err);
-        const msg = err.response?.data?.detail || err.message || 'Server connection failed';
-        alert(`Analysis failed: ${msg}. Please try again.`);
-      }
-      setLoading(false);
-    }
+    setDetectedIngredients([]);
+    setError(null);
   };
 
-  // Compress image to reduce payload size and speed up OCR/Analysis
+  // ── Compress Image ──────────────────────────────────────────────────────────
   const compressImage = (source, maxWidth = 800, quality = 0.7) => {
     return new Promise((resolve) => {
       const img = new Image();
@@ -96,6 +97,7 @@ const App = () => {
     });
   };
 
+  // ── Capture from Webcam ─────────────────────────────────────────────────────
   const capture = useCallback(async () => {
     const imageSrc = webcamRef.current.getScreenshot();
     if (imageSrc) {
@@ -107,39 +109,85 @@ const App = () => {
     }
   }, [webcamRef]);
 
+  // ── Analyze Skin ────────────────────────────────────────────────────────────
+  const handleAnalyze = async () => {
+    setLoading(true);
+    setError(null);
+    
+    // Convert answers to string values for the backend
+    const questionnairePayload = {
+      q1: String(answers.q1),
+      q2: String(answers.q2),
+      q3: String(answers.q3),
+      q4: String(answers.q4),
+      q5: String(answers.q5),
+    };
+
+    console.log("[DEBUG] Sending questionnaire:", questionnairePayload);
+    console.log("[DEBUG] Image length:", capturedImage?.length || 0);
+
+    try {
+      const response = await axios.post(getApiUrl('predict-skin'), {
+        image_b64: capturedImage,
+        questionnaire: questionnairePayload
+      }, { timeout: 90000 }); // 90s timeout for Render cold starts
+
+      console.log("[DEBUG] Skin Analysis Response:", response.data);
+
+      // Validate the response has the expected structure
+      if (response.data && response.data.skin_type && response.data.breakdown) {
+        setSkinResult(response.data);
+        setStep(3);
+      } else {
+        console.error("[ERROR] Invalid response structure:", response.data);
+        setError("The server returned an unexpected result. Please try again.");
+      }
+    } catch (err) {
+      console.error("[ERROR] Skin Analysis Failed:", err);
+      if (err.code === 'ECONNABORTED') {
+        setError("The server is starting up (cold start). Please wait 30 seconds and try again.");
+      } else {
+        const msg = err.response?.data?.detail || err.message || 'Server connection failed';
+        setError(`Analysis failed: ${msg}`);
+      }
+    }
+    setLoading(false);
+  };
+
+  // ── Upload & Analyze Ingredients ────────────────────────────────────────────
   const onFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     
     setLoading(true);
+    setError(null);
     try {
       const b64 = await compressImage(file);
       const response = await axios.post(getApiUrl('analyze-ingredients'), {
         image_b64: b64,
         skin_type: skinResult?.skin_type?.toLowerCase() || 'normal'
-      }, { timeout: 45000 });
+      }, { timeout: 90000 });
+
       console.log("[DEBUG] Ingredient Analysis Response:", response.data);
-      if (response.data.detected && response.data.detected.length === 0) {
-        console.warn("[DEBUG] No ingredients detected in the image.");
-      }
-      setDetectedIngredients(response.data.detected || []);
 
       if (response.data.error) {
-        alert(`OCR Error: ${response.data.error}`);
+        setError(`OCR Error: ${response.data.error}`);
       } else {
+        setDetectedIngredients(response.data.detected || []);
         setOcrResult(response.data);
         setStep(5);
       }
     } catch (err) {
-      console.error("OCR Error:", err);
+      console.error("[ERROR] OCR Failed:", err);
       const msg = err.response?.data?.detail || err.message || 'Connection timeout';
-      alert(`Ingredient scan failed: ${msg}`);
+      setError(`Ingredient scan failed: ${msg}`);
     }
     setLoading(false);
     // Reset file input so same file can be re-uploaded
     e.target.value = '';
   };
 
+  // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div className="container">
       {/* Step Indicator */}
@@ -148,6 +196,30 @@ const App = () => {
           {[1, 2, 3, 4].map(s => (
             <div key={s} className={`step-dot ${Math.ceil(step / 1.5) === s ? 'active' : ''}`} />
           ))}
+        </div>
+      )}
+
+      {/* Error Banner */}
+      {error && (
+        <div style={{
+          background: 'rgba(239, 68, 68, 0.08)',
+          border: '1px solid rgba(239, 68, 68, 0.3)',
+          borderRadius: '12px',
+          padding: '16px 24px',
+          marginBottom: '20px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          color: 'var(--accent-red)'
+        }}>
+          <AlertTriangle size={20} />
+          <span style={{ flex: 1 }}>{error}</span>
+          <button 
+            onClick={() => setError(null)} 
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent-red)', fontWeight: 'bold' }}
+          >
+            ✕
+          </button>
         </div>
       )}
 
@@ -259,7 +331,7 @@ const App = () => {
             </div>
           </div>
 
-          <button className="btn-primary" onClick={handleNext} style={{ width: '100%', justifyContent: 'center' }}>
+          <button className="btn-primary" onClick={handleAnalyze} disabled={loading} style={{ width: '100%', justifyContent: 'center' }}>
             {loading ? <div className="loader" style={{ width: '20px', height: '20px', margin: '0' }} /> : "Analyze My Skin"}
           </button>
         </section>
@@ -269,11 +341,18 @@ const App = () => {
       {step === 3 && (
         <section className="glass-card" style={{ padding: '60px', textAlign: 'center' }}>
           <CheckCircle2 size={64} color="var(--accent-green)" style={{ marginBottom: '20px' }} />
-          <h2 style={{ marginBottom: '10px' }}>Your Skin Type: <span style={{ color: 'var(--primary)' }}>{skinResult?.skin_type}</span></h2>
-          <p style={{ color: 'var(--text-muted)', marginBottom: '40px' }}>Based on our deep learning model and your questionnaire.</p>
+          <h2 style={{ marginBottom: '10px' }}>
+            Your Skin Type: <span style={{ color: 'var(--accent-blue)', fontWeight: 800 }}>{skinResult?.skin_type}</span>
+          </h2>
+          <p style={{ color: 'var(--text-muted)', marginBottom: '10px' }}>
+            Based on our deep learning model and your questionnaire.
+          </p>
+          <p style={{ color: 'var(--text-muted)', marginBottom: '40px', fontSize: '0.9rem' }}>
+            Confidence: {skinResult?.confidence ? `${Math.round(skinResult.confidence * 100)}%` : '—'}
+          </p>
           
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px', marginBottom: '40px' }}>
-            {Object.entries(skinResult?.breakdown || {}).map(([key, val]) => (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '15px', marginBottom: '40px' }}>
+            {skinResult?.breakdown && Object.entries(skinResult.breakdown).map(([key, val]) => (
               <div key={key} className="glass-card" style={{ padding: '15px' }}>
                 <div style={{ fontSize: '0.8rem', opacity: 0.6, textTransform: 'uppercase' }}>{key}</div>
                 <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{Math.round(val * 100)}%</div>
@@ -308,7 +387,7 @@ const App = () => {
       )}
 
       {/* OCR Result */}
-      {step === 5 && (
+      {step === 5 && ocrResult && (
         <section className="glass-card" style={{ padding: '40px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
             <h2>Ingredient Report</h2>
@@ -321,7 +400,7 @@ const App = () => {
             <div>
               <div style={{ marginBottom: '20px' }}>
                 <h4 style={{ color: 'var(--accent-green)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <CheckCircle2 size={16} /> Suitable ({ocrResult?.suitable?.length})
+                  <CheckCircle2 size={16} /> Suitable ({ocrResult?.suitable?.length || 0})
                 </h4>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '10px' }}>
                   {ocrResult?.suitable?.map(ing => <span key={ing} className="btn-option" style={{ padding: '5px 10px', fontSize: '0.8rem' }}>{ing}</span>)}
@@ -329,7 +408,7 @@ const App = () => {
               </div>
               <div>
                 <h4 style={{ color: 'var(--accent-red)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <AlertTriangle size={16} /> Avoid ({ocrResult?.harmful?.length})
+                  <AlertTriangle size={16} /> Avoid ({ocrResult?.harmful?.length || 0})
                 </h4>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '10px' }}>
                   {ocrResult?.harmful?.map(ing => <span key={ing} className="btn-option" style={{ padding: '5px 10px', fontSize: '0.8rem', borderColor: 'rgba(239, 68, 68, 0.3)' }}>{ing}</span>)}
@@ -337,7 +416,7 @@ const App = () => {
               </div>
               <div style={{ marginTop: '20px' }}>
                 <h4 style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Info size={16} /> Neutral ({ocrResult?.neutral?.length})
+                  <Info size={16} /> Neutral ({ocrResult?.neutral?.length || 0})
                 </h4>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '10px' }}>
                   {ocrResult?.neutral?.map(ing => <span key={ing} className="btn-option" style={{ padding: '5px 10px', fontSize: '0.8rem', opacity: 0.7 }}>{ing}</span>)}
@@ -350,7 +429,7 @@ const App = () => {
                 <Info size={16} /> AI Verdict
               </h4>
               <p style={{ color: 'var(--text-muted)', lineHeight: '1.6' }}>
-                We detected {ocrResult?.detected_count} ingredients in this product. Based on your <strong>{skinResult?.skin_type}</strong> skin type, 
+                We detected {ocrResult?.detected_count || 0} ingredients in this product. Based on your <strong>{skinResult?.skin_type}</strong> skin type, 
                 this product is {ocrResult?.verdict?.toLowerCase()}. 
                 {ocrResult?.harmful?.length > 0 ? " Watch out for potential irritants." : " It looks safe to use!"}
               </p>

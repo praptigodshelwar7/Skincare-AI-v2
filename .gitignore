@@ -17,9 +17,8 @@ env.bak/
 venv.bak/
 
 # Project Specific
-# Large model/wheel files
+# Large model/wheel files — keep .onnx so the model deploys to Render
 *.h5
-*.onnx
 *.whl
 *.log
 .DS_Store
