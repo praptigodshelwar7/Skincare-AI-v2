@@ -38,3 +38,10 @@ model_training/dataset/
 *.jpeg
 *.png
 *.zip
+
+# Allow specific report images
+!model_training/training_report.png
+!model_training/confusion_matrix.png
+
+# Scratch
+scratch/
