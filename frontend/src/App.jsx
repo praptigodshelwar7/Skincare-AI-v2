@@ -17,7 +17,9 @@ import {
   Search
 } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000/api";
+// Render's `host` property gives just "https://xxx.onrender.com" without /api
+const rawBase = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+const API_BASE = rawBase.endsWith("/api") ? rawBase : `${rawBase.replace(/\/+$/, '')}/api`;
 
 const App = () => {
   const [step, setStep] = useState(0); // 0: Hero, 1: Camera, 2: Questionnaire, 3: Result, 4: OCR, 5: OCR Result
@@ -55,9 +57,8 @@ const App = () => {
         setSkinResult(response.data);
         setStep(3);
       } catch (err) {
-        alert("Extraction failed. Using mock results for demo.");
-        setSkinResult({ skin_type: 'Combination', confidence: 0.85, breakdown: {oily: 0.6, dry: 0.3, normal: 0.1} });
-        setStep(3);
+        const msg = err.response?.data?.detail || err.message || 'Unknown error';
+        alert(`Skin analysis failed: ${msg}`);
       }
       setLoading(false);
     }
