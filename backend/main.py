@@ -230,13 +230,28 @@ async def analyze_ingredients(req: IngredientRequest):
             return {"error": "OCR engine not initialized. Check server logs."}
             
         try:
+            # Decode and resize to save RAM
             img = decode_image(req.image_b64)
-            result, _ = reader(img)
-            if result:
-                tokens.extend([line[1] for line in result])
             
-            # Manual cleanup to save RAM
-            del img
+            # Limit max dimension to 1024px for OCR (sufficient for text detection)
+            h, w = img.shape[:2]
+            max_dim = 1024
+            if max(h, w) > max_dim:
+                scale = max_dim / max(h, w)
+                img = cv2.resize(img, (int(w * scale), int(h * scale)))
+            
+            # Robust unpacking: RapidOCR can return 2 or 3 values depending on version
+            ocr_out = reader(img)
+            result = ocr_out[0] if ocr_out else None
+            
+            if result:
+                # Each line is [[coords], text, confidence] or [coords, text, confidence]
+                for line in result:
+                    if len(line) >= 2:
+                        tokens.append(str(line[1]))
+            
+            # Immediate cleanup
+            del img, ocr_out, result
             gc.collect()
         except Exception as e:
             print(f"OCR Runtime Error: {e}")

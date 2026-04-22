@@ -63,27 +63,52 @@ const App = () => {
     }
   };
 
+  // Compress image to reduce payload size and speed up OCR
+  const compressImage = (file, maxWidth = 1200, quality = 0.7) => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const scale = Math.min(1, maxWidth / img.width);
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const b64 = canvas.toDataURL('image/jpeg', quality);
+        URL.revokeObjectURL(url);
+        resolve(b64);
+      };
+      img.src = url;
+    });
+  };
+
   const onFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     
     setLoading(true);
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const b64 = reader.result;
-      try {
-        const response = await axios.post(`${API_BASE}/analyze-ingredients`, {
-          image_b64: b64,
-          skin_type: skinResult?.skin_type?.toLowerCase() || 'normal'
-        });
+    try {
+      const b64 = await compressImage(file);
+      const response = await axios.post(`${API_BASE}/analyze-ingredients`, {
+        image_b64: b64,
+        skin_type: skinResult?.skin_type?.toLowerCase() || 'normal'
+      }, { timeout: 60000 });
+
+      // Backend may return 200 with an error field
+      if (response.data.error) {
+        alert(`Analysis issue: ${response.data.error}`);
+      } else {
         setOcrResult(response.data);
         setStep(5);
-      } catch (err) {
-        alert("OCR Analysis failed.");
       }
-      setLoading(false);
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      const msg = err.response?.data?.detail || err.message || 'Unknown error';
+      alert(`OCR Analysis failed: ${msg}`);
+    }
+    setLoading(false);
+    // Reset file input so same file can be re-uploaded
+    e.target.value = '';
   };
 
   return (
