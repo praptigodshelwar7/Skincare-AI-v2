@@ -53,7 +53,7 @@ const App = () => {
         const response = await axios.post(`${API_BASE}/predict-skin`, {
           image_b64: capturedImage,
           questionnaire: answers
-        });
+        }, { timeout: 60000 });
         setSkinResult(response.data);
         setStep(3);
       } catch (err) {
@@ -64,12 +64,12 @@ const App = () => {
     }
   };
 
-  // Compress image to reduce payload size and speed up OCR
-  const compressImage = (file, maxWidth = 1200, quality = 0.7) => {
+  // Compress image to reduce payload size and speed up OCR/Analysis
+  const compressImage = (source, maxWidth = 800, quality = 0.7) => {
     return new Promise((resolve) => {
       const img = new Image();
-      const url = URL.createObjectURL(file);
-      img.onload = () => {
+      
+      const process = () => {
         const canvas = document.createElement('canvas');
         const scale = Math.min(1, maxWidth / img.width);
         canvas.width = img.width * scale;
@@ -77,12 +77,33 @@ const App = () => {
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         const b64 = canvas.toDataURL('image/jpeg', quality);
-        URL.revokeObjectURL(url);
         resolve(b64);
       };
-      img.src = url;
+
+      if (typeof source === 'string') {
+        img.onload = process;
+        img.src = source;
+      } else {
+        const url = URL.createObjectURL(source);
+        img.onload = () => {
+          process();
+          URL.revokeObjectURL(url);
+        };
+        img.src = url;
+      }
     });
   };
+
+  const capture = useCallback(async () => {
+    const imageSrc = webcamRef.current.getScreenshot();
+    if (imageSrc) {
+      setLoading(true);
+      const compressed = await compressImage(imageSrc);
+      setCapturedImage(compressed);
+      setLoading(false);
+      setStep(2);
+    }
+  }, [webcamRef]);
 
   const onFileUpload = async (e) => {
     const file = e.target.files[0];

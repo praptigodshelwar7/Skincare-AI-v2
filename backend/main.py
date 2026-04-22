@@ -29,8 +29,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Health Check (Render pings GET / to verify the service is alive) ────────
-@app.get("/")
+# ── Health Check (Render pings / to verify the service is alive) ──────────
+@app.api_route("/", methods=["GET", "HEAD"])
 async def health_check():
     return {"status": "ok", "service": "SkinCare AI API", "version": "3.0"}
 
@@ -93,8 +93,9 @@ async def load_assets():
 
     # --- Load RapidOCR ---
     try:
-        reader = RapidOCR()
-        print("RapidOCR initialized")
+        # Disable text orientation classification (cls) to save RAM
+        reader = RapidOCR(is_cls=False)
+        print("RapidOCR initialized (cls=False)")
     except Exception as e:
         print(f"OCR initialization failed: {e}")
 
@@ -238,14 +239,14 @@ async def analyze_ingredients(req: IngredientRequest):
             # Decode and resize to save RAM
             img = decode_image(req.image_b64)
             
-            # Limit max dimension to 1024px for OCR (sufficient for text detection)
+            # Limit max dimension to 800px for OCR (sufficient for text detection)
             h, w = img.shape[:2]
-            max_dim = 1024
+            max_dim = 800
             if max(h, w) > max_dim:
                 scale = max_dim / max(h, w)
                 img = cv2.resize(img, (int(w * scale), int(h * scale)))
             
-            # Robust unpacking: RapidOCR can return 2 or 3 values depending on version
+            # Robust unpacking
             ocr_out = reader(img)
             result = ocr_out[0] if ocr_out else None
             
