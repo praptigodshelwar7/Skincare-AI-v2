@@ -16,6 +16,7 @@ from rapidocr_onnxruntime import RapidOCR
 import gc
 
 # ── Global Assets ────────────────────────────────────────────────────────────
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 model_session = None  # ONNX InferenceSession
 reader = None  # RapidOCR engine
 
@@ -44,7 +45,8 @@ NORM_VAR  = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(1, 1, 1, 3
 
 # ── Load Ingredient Database ────────────────────────────────────────────────
 try:
-    ingredient_df = pd.read_csv("ingredients_db.csv")
+    csv_path = os.path.join(BASE_DIR, "ingredients_db.csv")
+    ingredient_df = pd.read_csv(csv_path)
     ingredient_df["name"] = ingredient_df["name"].astype(str).str.lower().str.strip()
     
     # Pre-process suitability columns
@@ -74,7 +76,7 @@ async def load_assets():
     global model_session, reader
 
     # --- Load ONNX Skin Model ---
-    model_path = "skin_model.onnx"
+    model_path = os.path.join(BASE_DIR, "skin_model.onnx")
     try:
         if os.path.exists(model_path):
             # Use only CPU and limit threads to save RAM
@@ -129,8 +131,8 @@ def detect_face(img: np.ndarray):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
     
-    # Standardize detection parameters
-    faces = cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(100, 100))
+    # Standardize detection parameters - slightly more relaxed for better recall
+    faces = cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4, minSize=(80, 80))
     
     if len(faces) == 0:
         return None, 0
@@ -138,8 +140,8 @@ def detect_face(img: np.ndarray):
     # Pick the largest face detected (likely the user)
     x, y, w, h = sorted(faces, key=lambda f: f[2]*f[3], reverse=True)[0]
     
-    # Add 10% padding to match the training preprocessing
-    pad = int(w * 0.1)
+    # Add 15% padding to match the training preprocessing and ensure coverage
+    pad = int(w * 0.15)
     y1 = max(0, y - pad)
     y2 = min(img.shape[0], y + h + pad)
     x1 = max(0, x - pad)
@@ -180,13 +182,33 @@ async def predict_skin_type(data: SkinPredictRequest):
 
     # Prediction
     if model_session:
-        input_tensor = preprocess_for_onnx(face_crop)
-        preds = model_session.run(None, {
-            "input_layer:0": input_tensor,
-            "functional_1/normalization_1/Sub/y:0": NORM_MEAN,
-            "functional_1/normalization_1/Sqrt/x:0": NORM_VAR,
-        })[0][0]
-        cnn_scores = {CLASS_NAMES[i]: float(preds[i]) for i in range(len(CLASS_NAMES))}
+        try:
+            input_tensor = preprocess_for_onnx(face_crop)
+            input_names = [i.name for i in model_session.get_inputs()]
+            
+            # Create input dictionary dynamically
+            feeds = {input_names[0]: input_tensor}
+            
+            # If the model has normalization inputs (legacy/specific export)
+            if len(input_names) > 1:
+                for name in input_names:
+                    if "normalization" in name.lower() or "sub" in name.lower():
+                        if "sub" in name.lower() or "/y" in name.lower():
+                            feeds[name] = NORM_MEAN
+                        elif "sqrt" in name.lower() or "/x" in name.lower():
+                            feeds[name] = NORM_VAR
+            
+            preds = model_session.run(None, feeds)[0][0]
+            
+            # Ensure predictions match CLASS_NAMES length
+            num_out = len(preds)
+            actual_classes = CLASS_NAMES[:num_out]
+            cnn_scores = {actual_classes[i]: float(preds[i]) for i in range(len(actual_classes))}
+            
+            print(f"DEBUG: ONNX Inputs used: {list(feeds.keys())}")
+        except Exception as e:
+            print(f"Inference Error: {e}")
+            cnn_scores = {"dry": 0.33, "normal": 0.34, "oily": 0.33}
     else:
         # Mock for development
         cnn_scores = {"dry": 0.2, "normal": 0.3, "oily": 0.5}

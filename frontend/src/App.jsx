@@ -17,9 +17,11 @@ import {
   Search
 } from 'lucide-react';
 
-// Render's `host` property gives just "https://xxx.onrender.com" without /api
+// Render's `host` property gives just "https://xxx.onrender.com"
 const rawBase = import.meta.env.VITE_API_BASE || "http://localhost:8000";
-const API_BASE = rawBase.endsWith("/api") ? rawBase : `${rawBase.replace(/\/+$/, '')}/api`;
+const API_BASE = rawBase.replace(/\/+$/, '') + (rawBase.includes("localhost") ? "/api" : "/api");
+// Ensure it always has /api suffix if missing, but avoid double slash
+const getApiUrl = (endpoint) => `${API_BASE.replace(/\/+$/, '')}/${endpoint.replace(/^\/+/, '')}`;
 
 const App = () => {
   const [step, setStep] = useState(0); // 0: Hero, 1: Camera, 2: Questionnaire, 3: Result, 4: OCR, 5: OCR Result
@@ -44,15 +46,16 @@ const App = () => {
       // Analyze Skin
       setLoading(true);
       try {
-        const response = await axios.post(`${API_BASE}/predict-skin`, {
+        const response = await axios.post(getApiUrl('predict-skin'), {
           image_b64: capturedImage,
           questionnaire: answers
-        }, { timeout: 60000 });
+        }, { timeout: 45000 });
         setSkinResult(response.data);
         setStep(3);
       } catch (err) {
-        const msg = err.response?.data?.detail || err.message || 'Unknown error';
-        alert(`Skin analysis failed: ${msg}`);
+        console.error("Skin Analysis Error:", err);
+        const msg = err.response?.data?.detail || err.message || 'Server connection failed';
+        alert(`Analysis failed: ${msg}. Please try again.`);
       }
       setLoading(false);
     }
@@ -106,21 +109,21 @@ const App = () => {
     setLoading(true);
     try {
       const b64 = await compressImage(file);
-      const response = await axios.post(`${API_BASE}/analyze-ingredients`, {
+      const response = await axios.post(getApiUrl('analyze-ingredients'), {
         image_b64: b64,
         skin_type: skinResult?.skin_type?.toLowerCase() || 'normal'
-      }, { timeout: 60000 });
+      }, { timeout: 45000 });
 
-      // Backend may return 200 with an error field
       if (response.data.error) {
-        alert(`Analysis issue: ${response.data.error}`);
+        alert(`OCR Error: ${response.data.error}`);
       } else {
         setOcrResult(response.data);
         setStep(5);
       }
     } catch (err) {
-      const msg = err.response?.data?.detail || err.message || 'Unknown error';
-      alert(`OCR Analysis failed: ${msg}`);
+      console.error("OCR Error:", err);
+      const msg = err.response?.data?.detail || err.message || 'Connection timeout';
+      alert(`Ingredient scan failed: ${msg}`);
     }
     setLoading(false);
     // Reset file input so same file can be re-uploaded

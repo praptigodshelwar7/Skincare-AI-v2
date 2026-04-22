@@ -1,39 +1,46 @@
 import os
 import tensorflow as tf
 import keras
-from keras.applications import EfficientNetB0
 from keras.layers import Dense, GlobalAveragePooling2D, Dropout
 from keras.models import Model
 from keras.preprocessing.image import ImageDataGenerator
 from keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 import matplotlib.pyplot as plt
 import numpy as np
+from tensorflow.keras.mixed_precision import experimental as mixed_precision
+from keras.applications import MobileNetV2  
+mixed_precision.set_policy('mixed_float16') 
+tf.config.threading.set_intra_op_parallelism_threads(1)
+tf.config.threading.set_inter_op_parallelism_threads(1)
 
 # Configuration
 IMG_SIZE = 224
-BATCH_SIZE = 8
+BATCH_SIZE = 4
 EPOCHS = 50
 DATA_DIR = "model_training/data/processed"  # Use processed data from prepare_data.py
 
 def build_model(num_classes):
-    """Builds a model using EfficientNetB0 for transfer learning."""
-    base_model = EfficientNetB0(weights='imagenet', include_top=False, input_shape=(IMG_SIZE, IMG_SIZE, 3))
-    
-    # Freeze the base model
-    base_model.trainable = False
-    
+    """Builds a model using MobileNetV2 for transfer learning."""
+    base_model = MobileNetV2(
+        weights='imagenet',
+        include_top=False,
+        input_shape=(IMG_SIZE, IMG_SIZE, 3)
+    )
+    base_model.trainable = False          # freeze at first
     x = base_model.output
     x = GlobalAveragePooling2D()(x)
-    x = Dense(256, activation='relu')(x)
-    x = Dropout(0.4)(x)
+    x = Dense(128, activation='relu')(x)  # smaller dense layer
+    x = Dropout(0.3)(x)
     predictions = Dense(num_classes, activation='softmax')(x)
-    
+
     model = Model(inputs=base_model.input, outputs=predictions)
-    
-    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
-                  loss='categorical_crossentropy',
-                  metrics=['accuracy'])
+    model.compile(
+        optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
+        loss='categorical_crossentropy',
+        metrics=['accuracy']
+    )
     return model
+
 
 def train():
     if not os.path.exists(DATA_DIR):
@@ -136,3 +143,4 @@ def plot_history(h1, h2):
 
 if __name__ == "__main__":
     train()
+tf.keras.backend.clear_session()
