@@ -328,28 +328,33 @@ async def analyze_ingredients(req: IngredientRequest):
     full_text = " ".join(tokens).lower()
     user_skin = req.skin_type.lower()
     
-    # Accurate matching with ingredient list
+    # FASTER MATCHING: Use word sets for speed
+    full_text_cleaned = re.sub(r'[^a-z0-9 ]', ' ', full_text)
+    text_words = set(full_text_cleaned.split())
+    
     detected = []
     suitable = []
     harmful = []
     neutral = []
 
     for ing in INGREDIENT_LIST:
-        # Check if the ingredient name exists as a whole word or significant fuzzy match
-        if ing in full_text or (len(ing) > 4 and fuzz.partial_ratio(ing, full_text) > 90):
+        # 1. Quick exact match (very fast)
+        is_match = False
+        if ing in text_words or ing in full_text:
+            is_match = True
+        # 2. Fuzzy match only for long, unique ingredients (slower, so use sparingly)
+        elif len(ing) > 6 and fuzz.partial_ratio(ing, full_text) > 92:
+            is_match = True
+
+        if is_match:
             detected.append(ing)
-            
             ing_data = INGREDIENT_DATA.get(ing, {"good_for": [], "avoid_for": []})
-            
             is_good = any(user_skin in s or s in user_skin for s in ing_data["good_for"])
             is_bad = any(user_skin in s or s in user_skin for s in ing_data["avoid_for"])
             
-            if is_bad:
-                harmful.append(ing)
-            elif is_good:
-                suitable.append(ing)
-            else:
-                neutral.append(ing)
+            if is_bad: harmful.append(ing)
+            elif is_good: suitable.append(ing)
+            else: neutral.append(ing)
 
     # De-duplicate while preserving order
     detected = list(dict.fromkeys(detected))
