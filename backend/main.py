@@ -11,28 +11,13 @@ import re
 import pandas as pd
 from PIL import Image
 from rapidfuzz import fuzz
-import tensorflow as tf
+import onnxruntime as ort
 from rapidocr_onnxruntime import RapidOCR
 import gc
-from tensorflow.keras.applications.efficientnet import preprocess_input
-
-# ── Memory Optimization ──────────────────────────────────────────────────────
-# Prevent TensorFlow from allocating all RAM on startup
-gpus = tf.config.experimental.list_physical_devices('GPU')
-if gpus:
-    try:
-        for gpu in gpus:
-            tf.config.experimental.set_memory_growth(gpu, True)
-    except RuntimeError as e:
-        print(e)
-else:
-    # On CPU, limit threads to reduce memory footprint
-    tf.config.threading.set_intra_op_parallelism_threads(1)
-    tf.config.threading.set_inter_op_parallelism_threads(1)
 
 # ── Global Assets ────────────────────────────────────────────────────────────
-model = None
-reader = None # Initialize as None to avoid NameError
+model_session = None  # ONNX InferenceSession
+reader = None  # RapidOCR engine
 
 app = FastAPI(title="SkinCare AI API", version="3.0")
 
@@ -44,7 +29,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Load Assets ──────────────────────────────────────────────────────────────
+# ── ONNX Model Constants ────────────────────────────────────────────────────
+CLASS_NAMES = ["dry", "normal", "oily"]
+
+# Normalization constants extracted from the Keras Normalization layer.
+# The layer computes: (x - mean) / sqrt(variance)
+NORM_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(1, 1, 1, 3)
+NORM_VAR  = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(1, 1, 1, 3)
+
+# ── Load Ingredient Database ────────────────────────────────────────────────
 try:
     ingredient_df = pd.read_csv("ingredients_db.csv")
     ingredient_df["name"] = ingredient_df["name"].astype(str).str.lower().str.strip()
@@ -70,24 +63,31 @@ except Exception as e:
     INGREDIENT_LIST = []
     INGREDIENT_DATA = {}
 
-# Load model
-model = None
-CLASS_NAMES = ["dry", "normal", "oily"]
-T_OPT = 1.2  # Temperature scaling constant
-
+# ── Load Assets on Startup ──────────────────────────────────────────────────
 @app.on_event("startup")
 async def load_assets():
-    global model, reader
+    global model_session, reader
+
+    # --- Load ONNX Skin Model ---
+    model_path = "skin_model.onnx"
     try:
-        if os.path.exists("skin_model.h5"):
-            # Use compile=False to avoid deserialization errors in Keras 3
-            model = tf.keras.models.load_model("skin_model.h5", compile=False)
-            print("Skin classification model loaded")
+        if os.path.exists(model_path):
+            # Use only CPU and limit threads to save RAM
+            opts = ort.SessionOptions()
+            opts.intra_op_num_threads = 1
+            opts.inter_op_num_threads = 1
+            opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+            model_session = ort.InferenceSession(
+                model_path, sess_options=opts, providers=["CPUExecutionProvider"]
+            )
+            print(f"ONNX skin model loaded from {model_path}")
+        else:
+            print(f"Model file {model_path} not found; using mock predictions.")
     except Exception as e:
         print(f"Model load failed: {e}. Using mock predictions.")
 
+    # --- Load RapidOCR ---
     try:
-        # Load RapidOCR (ONNX based, very low RAM compared to EasyOCR)
         reader = RapidOCR()
         print("RapidOCR initialized")
     except Exception as e:
@@ -122,11 +122,33 @@ def detect_face(img: np.ndarray):
     # Use Haar Cascade for simplicity and speed in demo
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+    
+    # Standardize detection parameters
     faces = cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(100, 100))
+    
     if len(faces) == 0:
         return None, 0
-    x, y, w, h = faces[0]
-    return img[y:y+h, x:x+w], 1.0
+        
+    # Pick the largest face detected (likely the user)
+    x, y, w, h = sorted(faces, key=lambda f: f[2]*f[3], reverse=True)[0]
+    
+    # Add 10% padding to match the training preprocessing
+    pad = int(w * 0.1)
+    y1 = max(0, y - pad)
+    y2 = min(img.shape[0], y + h + pad)
+    x1 = max(0, x - pad)
+    x2 = min(img.shape[1], x + w + pad)
+    
+    return img[y1:y2, x1:x2], 1.0
+
+def preprocess_for_onnx(face_crop: np.ndarray) -> np.ndarray:
+    """Resize and convert the face crop to a float32 tensor for the ONNX model.
+    The model's internal Normalization layer handles mean/std subtraction,
+    but we need to scale pixels to [0, 1] first (matching training's rescale=1./255)."""
+    img = cv2.resize(face_crop, (224, 224))
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # OpenCV is BGR, model expects RGB
+    img = img.astype(np.float32) / 255.0
+    return np.expand_dims(img, axis=0)  # (1, 224, 224, 3)
 
 def questionnaire_scoring(q: QuestionnaireData):
     scores = {"oily": 0, "dry": 0, "normal": 0, "combination": 0}
@@ -151,11 +173,13 @@ async def predict_skin_type(data: SkinPredictRequest):
         raise HTTPException(status_code=400, detail="No face detected. Please ensure good lighting.")
 
     # Prediction
-    if model:
-        input_img = cv2.resize(face_crop, (224, 224))
-        input_img = preprocess_input(input_img)
-        input_img = np.expand_dims(input_img, axis=0)
-        preds = model.predict(input_img, verbose=0)[0]
+    if model_session:
+        input_tensor = preprocess_for_onnx(face_crop)
+        preds = model_session.run(None, {
+            "input_layer:0": input_tensor,
+            "functional_1/normalization_1/Sub/y:0": NORM_MEAN,
+            "functional_1/normalization_1/Sqrt/x:0": NORM_VAR,
+        })[0][0]
         cnn_scores = {CLASS_NAMES[i]: float(preds[i]) for i in range(len(CLASS_NAMES))}
     else:
         # Mock for development
@@ -188,6 +212,10 @@ async def predict_skin_type(data: SkinPredictRequest):
     
     skin_type = max(final_scores, key=final_scores.get)
     
+    # Free memory
+    del img, face_crop
+    gc.collect()
+    
     return {
         "skin_type": skin_type.capitalize(),
         "confidence": final_scores[skin_type],
@@ -195,14 +223,14 @@ async def predict_skin_type(data: SkinPredictRequest):
     }
 
 @app.post("/api/analyze-ingredients")
-async def analyze_ingredients(data: IngredientRequest):
+async def analyze_ingredients(req: IngredientRequest):
     tokens = []
-    if data.image_b64:
+    if req.image_b64:
         if reader is None:
             return {"error": "OCR engine not initialized. Check server logs."}
             
         try:
-            img = decode_image(data.image_b64)
+            img = decode_image(req.image_b64)
             result, _ = reader(img)
             if result:
                 tokens.extend([line[1] for line in result])
@@ -214,11 +242,11 @@ async def analyze_ingredients(data: IngredientRequest):
             print(f"OCR Runtime Error: {e}")
             return {"error": f"OCR processing failed: {str(e)}"}
     
-    if data.manual_text:
-        tokens.append(data.manual_text)
+    if req.manual_text:
+        tokens.append(req.manual_text)
         
     full_text = " ".join(tokens).lower()
-    user_skin = data.skin_type.lower()
+    user_skin = req.skin_type.lower()
     
     # Accurate matching with ingredient list
     detected = []
@@ -231,10 +259,10 @@ async def analyze_ingredients(data: IngredientRequest):
         if ing in full_text or (len(ing) > 4 and fuzz.partial_ratio(ing, full_text) > 90):
             detected.append(ing)
             
-            data = INGREDIENT_DATA.get(ing, {"good_for": [], "avoid_for": []})
+            ing_data = INGREDIENT_DATA.get(ing, {"good_for": [], "avoid_for": []})
             
-            is_good = any(user_skin in s or s in user_skin for s in data["good_for"])
-            is_bad = any(user_skin in s or s in user_skin for s in data["avoid_for"])
+            is_good = any(user_skin in s or s in user_skin for s in ing_data["good_for"])
+            is_bad = any(user_skin in s or s in user_skin for s in ing_data["avoid_for"])
             
             if is_bad:
                 harmful.append(ing)

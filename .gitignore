@@ -17,7 +17,9 @@ env.bak/
 venv.bak/
 
 # Project Specific
-# Large media/logs
+# Large model/wheel files
+*.h5
+*.whl
 *.log
 .DS_Store
 .vscode/
