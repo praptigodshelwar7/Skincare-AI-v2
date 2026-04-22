@@ -1,8 +1,13 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
 :root {
   --primary: #0f172a;
   --primary-hover: #1e293b;
   --accent: #059669;
   --accent-soft: #ecfdf5;
+  --accent-green: #10b981;
+  --accent-red: #ef4444;
+  --accent-blue: #6366f1;
   --bg-light: #f8fafc;
   --bg-card: #ffffff;
   --text-main: #1e293b;
@@ -32,7 +37,7 @@ body {
   padding: 40px 20px;
 }
 
-/* Nav */
+/* ── Nav ────────────────────────────────────────────────────────────────────── */
 nav {
   display: flex;
   justify-content: space-between;
@@ -67,7 +72,29 @@ nav {
   color: var(--primary);
 }
 
-/* Glass Card - Professional Version */
+/* ── Step Indicator ─────────────────────────────────────────────────────────── */
+.step-indicator {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 40px;
+}
+
+.step-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: all 0.3s ease;
+}
+
+.step-dot.active {
+  background: var(--accent-blue);
+  transform: scale(1.3);
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2);
+}
+
+/* ── Glass Card ─────────────────────────────────────────────────────────────── */
 .glass-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -80,7 +107,7 @@ nav {
   box-shadow: var(--shadow-lg);
 }
 
-/* Typography */
+/* ── Typography ─────────────────────────────────────────────────────────────── */
 h1 {
   font-size: 3rem;
   font-weight: 800;
@@ -95,38 +122,55 @@ h2 {
   color: var(--primary);
 }
 
-/* Buttons */
+h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────────────── */
 .btn-primary {
   background: var(--primary);
   color: white;
-  padding: 12px 28px;
-  border-radius: 8px;
+  padding: 14px 28px;
+  border-radius: 12px;
   border: none;
   font-weight: 600;
   font-size: 1rem;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
+  font-family: inherit;
 }
 
 .btn-primary:hover {
   background: var(--primary-hover);
   transform: translateY(-1px);
+  box-shadow: var(--shadow-lg);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
 }
 
 .btn-secondary {
   background: white;
   color: var(--primary);
   border: 1px solid var(--border);
-  padding: 12px 28px;
-  border-radius: 8px;
+  padding: 14px 28px;
+  border-radius: 12px;
   font-weight: 600;
+  font-size: 1rem;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
+  transition: all 0.2s ease;
+  font-family: inherit;
 }
 
 .btn-secondary:hover {
@@ -134,14 +178,117 @@ h2 {
   border-color: var(--primary);
 }
 
-/* Grid & Layout */
+.btn-option {
+  background: white;
+  color: var(--text-main);
+  border: 2px solid var(--border);
+  padding: 10px 24px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  min-width: 80px;
+}
+
+.btn-option:hover {
+  border-color: var(--accent-blue);
+  background: rgba(99, 102, 241, 0.04);
+}
+
+.btn-option.selected {
+  background: var(--accent-blue);
+  color: white;
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
+/* ── Question Card ──────────────────────────────────────────────────────────── */
+.question-card {
+  padding: 24px 28px;
+  margin-bottom: 16px;
+}
+
+/* ── Webcam ─────────────────────────────────────────────────────────────────── */
+.webcam-container {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  aspect-ratio: 3 / 4;
+  margin: 0 auto;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 2px solid var(--border);
+  background: #000;
+}
+
+.webcam-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.face-guide {
+  width: 220px;
+  height: 280px;
+  border: 3px dashed rgba(255, 255, 255, 0.5);
+  border-radius: 50%;
+  animation: pulse-guide 2s ease-in-out infinite;
+}
+
+@keyframes pulse-guide {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.03); }
+}
+
+/* ── Loading Spinner ────────────────────────────────────────────────────────── */
+.loader {
+  width: 28px;
+  height: 28px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  margin: 20px auto;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Result Badge ───────────────────────────────────────────────────────────── */
+.result-badge {
+  padding: 8px 20px;
+  border-radius: 100px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
+}
+
+.badge-green {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--accent-green);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.badge-orange {
+  background: rgba(245, 158, 11, 0.1);
+  color: #d97706;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+/* ── Grid & Layout ──────────────────────────────────────────────────────────── */
 .about-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 24px;
 }
 
-/* Team Styles */
+/* ── Team Styles ────────────────────────────────────────────────────────────── */
 .team-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -176,13 +323,16 @@ h2 {
   margin-bottom: 8px;
 }
 
-/* Utils */
+/* ── Utils ───────────────────────────────────────────────────────────────────── */
 .text-muted { color: var(--text-muted); }
 .mt-40 { margin-top: 40px; }
 .mb-20 { margin-bottom: 20px; }
 
-/* Responsive */
+/* ── Responsive ─────────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
+  h1 { font-size: 2rem; }
+  h2 { font-size: 1.5rem; }
+
   .about-grid, .team-grid {
     grid-template-columns: 1fr;
   }

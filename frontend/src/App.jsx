@@ -214,6 +214,22 @@ const App = () => {
             </div>
           </div>
 
+          <div className="glass-card question-card">
+            <h3>4. Is your skin easily irritated or sensitive?</h3>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
+              <button className={`btn-option ${answers.q4 === 'yes' ? 'selected' : ''}`} onClick={() => setAnswers({...answers, q4: 'yes'})}>Yes</button>
+              <button className={`btn-option ${answers.q4 === 'no' ? 'selected' : ''}`} onClick={() => setAnswers({...answers, q4: 'no'})}>No</button>
+            </div>
+          </div>
+
+          <div className="glass-card question-card">
+            <h3>5. Is your skin oily in some areas and dry in others?</h3>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
+              <button className={`btn-option ${answers.q5 === 'yes' ? 'selected' : ''}`} onClick={() => setAnswers({...answers, q5: 'yes'})}>Yes</button>
+              <button className={`btn-option ${answers.q5 === 'no' ? 'selected' : ''}`} onClick={() => setAnswers({...answers, q5: 'no'})}>No</button>
+            </div>
+          </div>
+
           <button className="btn-primary" onClick={handleNext} style={{ width: '100%', justifyContent: 'center' }}>
             {loading ? <div className="loader" style={{ width: '20px', height: '20px', margin: '0' }} /> : "Analyze My Skin"}
           </button>
