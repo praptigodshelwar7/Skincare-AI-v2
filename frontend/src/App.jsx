@@ -39,12 +39,6 @@ const App = () => {
   
   const webcamRef = useRef(null);
 
-  const capture = useCallback(() => {
-    const imageSrc = webcamRef.current.getScreenshot();
-    setCapturedImage(imageSrc);
-    setStep(2);
-  }, [webcamRef]);
-
   const handleNext = async () => {
     if (step === 2) {
       // Analyze Skin
