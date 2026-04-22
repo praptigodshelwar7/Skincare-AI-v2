@@ -292,19 +292,22 @@ async def analyze_ingredients(req: IngredientRequest):
             # Decode and resize to save RAM
             img = decode_image(req.image_b64)
             
-            # Limit max dimension to 800px for OCR (sufficient for text detection)
+            # AGGRESSIVE SHRINK: Limit max dimension to 640px for OCR
+            # This significantly reduces RAM usage during text detection
             h, w = img.shape[:2]
-            max_dim = 800
+            max_dim = 640
             if max(h, w) > max_dim:
                 scale = max_dim / max(h, w)
                 img = cv2.resize(img, (int(w * scale), int(h * scale)))
+            
+            print(f"DEBUG: OCR Image resized to {img.shape}")
+            gc.collect() # Clear memory before starting OCR
             
             # Robust unpacking
             ocr_out = reader(img)
             result = ocr_out[0] if ocr_out else None
             
             if result:
-                # Each line is [[coords], text, confidence] or [coords, text, confidence]
                 for line in result:
                     if len(line) >= 2:
                         tokens.append(str(line[1]))
