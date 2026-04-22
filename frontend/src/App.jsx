@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 
 // Render's `host` property gives just "https://xxx.onrender.com"
-const rawBase = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+const rawBase = import.meta.env.VITE_API_BASE || "https://skincare-api-cmnk.onrender.com";
 const API_BASE = rawBase.replace(/\/+$/, '') + (rawBase.includes("localhost") ? "" : "");
 // Ensure it always has /api suffix if missing, but avoid double slash
 const getApiUrl = (endpoint) => {
@@ -118,6 +118,11 @@ const App = () => {
         image_b64: b64,
         skin_type: skinResult?.skin_type?.toLowerCase() || 'normal'
       }, { timeout: 45000 });
+      console.log("[DEBUG] Ingredient Analysis Response:", response.data);
+      if (response.data.detected && response.data.detected.length === 0) {
+        console.warn("[DEBUG] No ingredients detected in the image.");
+      }
+      setDetectedIngredients(response.data.detected || []);
 
       if (response.data.error) {
         alert(`OCR Error: ${response.data.error}`);
