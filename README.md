@@ -97,6 +97,7 @@ The current skin classification model is based on **EfficientNetB0**, which offe
 The system is configured for deployment on the Render platform.
 *   **Service Type**: Web Service (Backend) and Static Site (Frontend).
 *   **Configuration**: Refer to `render.yaml` for environment variables and build commands.
+*   Link - https://skincare-frontend-jqau.onrender.com/
 
 ## Disclaimer
 This application is designed for informational and educational purposes only. It does not provide medical advice, diagnosis, or treatment. Always seek the advice of a dermatologist or other qualified health provider with any questions regarding a medical condition.
