@@ -16,6 +16,10 @@ The project follows a decoupled client-server architecture:
 *   **Backend**: A high-performance REST API built with FastAPI, utilizing ONNX Runtime for efficient model inference.
 *   **Machine Learning Pipeline**: Includes advanced face detection (MTCNN), test-time augmentation (TTA), and a fine-tuned EfficientNetB0 architecture.
 
+## Dataset link 
+
+* https://app.roboflow.com/skintype-ssboo/projects
+  
 ## Technology Stack
 
 ### Frontend
@@ -84,6 +88,10 @@ The current skin classification model is based on **EfficientNetB0**, which offe
 *   **Training Accuracy**: ~87.4% (Phase 2 completion)
 *   **Validation Accuracy**: ~84.2%
 *   **Inference Engine**: ONNX Runtime (CPU optimized).
+
+## Output and Results
+<img width="1315" height="720" alt="image" src="https://github.com/user-attachments/assets/d9703b94-a2f6-46fd-bb82-3e2b392949db" />
+
 
 ## Deployment
 The system is configured for deployment on the Render platform.
