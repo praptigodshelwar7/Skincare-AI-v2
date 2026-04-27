@@ -40,9 +40,9 @@ async def health_check():
 CLASS_NAMES = ["dry", "normal", "oily"]
 
 # Normalization constants extracted from the Keras Normalization layer.
-# The layer computes: (x - mean) / sqrt(variance)
+# Note: Keras stores VARIANCE (std^2), so we must use std^2 for the Sqrt/x input.
 NORM_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(1, 1, 1, 3)
-NORM_VAR  = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(1, 1, 1, 3)
+NORM_VAR  = np.array([0.229**2, 0.224**2, 0.225**2], dtype=np.float32).reshape(1, 1, 1, 3)
 
 # ── Load Ingredient Database ────────────────────────────────────────────────
 try:
@@ -185,9 +185,18 @@ def questionnaire_scoring(q: QuestionnaireData):
     if is_yes(q.q4): scores["dry"] += 1; scores["normal"] += 0.5
     if is_yes(q.q5): scores["combination"] += 4
     
-    total = sum(scores.values()) or 1
-    result = {k: v/total for k, v in scores.items()}
-    print(f"DEBUG: Questionnaire scores: {result}")
+    # SMOOTHING: Add a base value to avoid 0.0 or 1.0 extremes in the quiz
+    # This ensures the quiz "suggests" a type but doesn't "demand" it.
+    total = sum(scores.values())
+    if total > 0:
+        # Normalize and then blend with a uniform distribution (0.25 each)
+        # 70% Quiz result, 30% Uniform baseline
+        result = {k: (v/total * 0.7) + 0.075 for k, v in scores.items()}
+    else:
+        # If no questions answered, uniform baseline
+        result = {k: 0.25 for k in scores}
+        
+    print(f"DEBUG: Smoothed Questionnaire scores: {result}")
     return result
 
 # ── Core Analysis ─────────────────────────────────────────────────────────────
@@ -255,9 +264,14 @@ async def predict_skin_type(data: SkinPredictRequest):
     
     all_cnn = {**cnn_scores, "combination": cnn_comb}
     
+    # HYBRID WEIGHTING: 75% Model, 25% Quiz
+    # This makes the face scan the primary driver while using the quiz as context.
     for ct in ["dry", "normal", "oily", "combination"]:
-        # 60% Model, 40% Quiz
-        final_scores[ct] = (all_cnn.get(ct, 0) * 0.6) + (q_scores.get(ct, 0) * 0.4)
+        final_scores[ct] = (all_cnn.get(ct, 0) * 0.75) + (q_scores.get(ct, 0) * 0.25)
+    
+    print(f"DEBUG: CNN vs Quiz Influence:")
+    for ct in ["dry", "normal", "oily", "combination"]:
+        print(f"  - {ct:12}: CNN={all_cnn.get(ct,0):.3f} (75%) | Quiz={q_scores.get(ct,0):.3f} (25%) | Final={final_scores[ct]:.3f}")
     
     print(f"DEBUG: CNN scores (with derived combination): {all_cnn}")
     print(f"DEBUG: Quiz scores: {q_scores}")
